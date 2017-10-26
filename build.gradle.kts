@@ -99,6 +99,7 @@ val junitTestImplementationArtifacts: Map<String, Map<String, String>> by rootPr
 val junitTestRuntimeOnlyArtifacts: Map<String, Map<String, String>> by rootProject.extra
 
 dependencies {
+  api("com.amazonaws", "DynamoDBLocal", "1.11.86")
   api("org.slf4j", "slf4j-api", "1.7.25")
   api("org.junit.jupiter", "junit-jupiter-api", junitJupiterVersion)
   testImplementation(kotlin("stdlib-jre8", kotlinVersion as String))
