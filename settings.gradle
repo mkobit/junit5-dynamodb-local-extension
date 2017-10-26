@@ -8,4 +8,4 @@ pluginManagement {
   }
 }
 
-rootProject.name = 'junit5-dynamodb-extension'
+rootProject.name = 'junit5-dynamodb-local-extension'
