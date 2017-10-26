@@ -4,7 +4,9 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBStreams;
 import com.amazonaws.services.dynamodbv2.local.embedded.DynamoDBEmbedded;
 import com.amazonaws.services.dynamodbv2.local.shared.access.AmazonDynamoDBLocal;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
@@ -12,14 +14,80 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class EmbeddedDynamoDBExtension
-    implements AfterEachCallback, ParameterResolver {
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+/**
+ * Creates a {@link AmazonDynamoDBLocal} instance and provides it to the tests.
+ */
+class EmbeddedDynamoDBExtension
+    implements AfterEachCallback, BeforeAllCallback, AfterAllCallback, ParameterResolver {
   private static final Logger LOGGER = LoggerFactory.getLogger(EmbeddedDynamoDBExtension.class);
+  private static final String SQLLITE4JAVA_LIB_PATH_KEY = "sqlite4java.library.path";
+
+  private static final Predicate<String> PATH_ELEMENT_FILTER = (element) -> element.contains("sqlite")
+      && (element.endsWith("dll") || element.endsWith("so") || element.endsWith("dylib"));
+
+  @Override
+  public void beforeAll(final ExtensionContext context) throws Exception {
+    final ExtensionContext.Store store = getStore(context);
+    final Path tempDirectory = store.getOrComputeIfAbsent(context,
+                                                          (extensionContext) -> {
+                                                            try {
+                                                              return Files.createTempDirectory("native-libraries");
+                                                            } catch (IOException e) {
+                                                              throw new RuntimeException(
+                                                                  "Could not create temp native-libraries directory",
+                                                                  e);
+                                                            }
+                                                          }, Path.class);
+    System.setProperty(SQLLITE4JAVA_LIB_PATH_KEY, tempDirectory.toAbsolutePath().toString());
+    Stream.of(System.getProperty("java.class.path", "."))
+          .map(classPath -> classPath.split(System.getProperty("path.separator")))
+          .flatMap(Arrays::stream)
+          .filter(PATH_ELEMENT_FILTER)
+          .map(File::new)
+          .map(File::toPath)
+          .forEach(libraryPath -> {
+            try {
+              Files.copy(libraryPath, tempDirectory.resolve(libraryPath.getFileName()));
+            } catch (IOException ioException) {
+              throw new RuntimeException(
+                  "Could not copy file " + libraryPath + " to " + tempDirectory.resolve(libraryPath.getFileName()),
+                  ioException
+              );
+            }
+          });
+  }
+
+  @Override
+  public void afterAll(final ExtensionContext context) throws Exception {
+    final ExtensionContext.Store store = getStore(context);
+    final Path tempNativeLibraries = store.remove(context, Path.class);
+    if (tempNativeLibraries != null) {
+      LOGGER.debug("Deleting all native library files at {}", tempNativeLibraries);
+      Files.walk(tempNativeLibraries)
+           .sorted(Comparator.reverseOrder())
+           .peek(path -> LOGGER.debug("Deleting file/directory located at " + path))
+           .forEach(ThrowingConsumer.wrap(Files::delete));
+    }
+  }
 
   @Override
   public void afterEach(final ExtensionContext context) throws Exception {
     LOGGER.debug("Shutting down Dynamo DB instance for {}", context.getElement());
+    final ExtensionContext.Store store = getStore(context);
+    final AmazonDynamoDBLocal dynamoDBLocal = store.remove(context, AmazonDynamoDBLocal.class);
+    if (dynamoDBLocal != null) {
+      dynamoDBLocal.shutdown();
+    }
   }
 
   @Override
@@ -63,5 +131,24 @@ class EmbeddedDynamoDBExtension
             context
         )
     );
+  }
+
+  @FunctionalInterface
+  private interface ThrowingConsumer<T> {
+    void accept(T t) throws Exception;
+
+    static <T> Consumer<T> wrap(ThrowingConsumer<T> consumer) {
+      return wrap("Error processing consumer", consumer);
+    }
+
+    static <T> Consumer<T> wrap(final String message, final ThrowingConsumer<T> consumer) {
+      return (T t) -> {
+        try {
+          consumer.accept(t);
+        } catch (Exception exception) {
+          throw new RuntimeException(message, exception);
+        }
+      };
+    }
   }
 }
