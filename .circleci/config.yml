@@ -1,0 +1,44 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/openjdk:8-jdk
+        environment:
+          JAVA_OPTS: -XX:+UseG1GC
+          # Disable Kotlin compiler daemon - https://discuss.kotlinlang.org/t/solved-disable-kotlin-compiler-process-keepalive/2622
+          GRADLE_OPTS: -Dkotlin.compiler.execution.strategy="in-process"
+
+    working_directory: ~/build-working-directory
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - home-cache-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle.properties" }}-{{ checksum "gradle/junit5.gradle.kts" }}
+          - build-cache-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle.properties" }}-{{ checksum "gradle/junit5.gradle.kts" }}
+
+      - run:
+          command: |
+            java -XshowSettings:vm -XX:+PrintCommandLineFlags -version
+            java -XshowSettings:vm -XX:+PrintCommandLineFlags -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -version
+            javac -version
+          name: Show Java Version
+
+      - run:
+          command: ./gradlew build --stacktrace --scan
+          name: Gradle Build
+
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: home-cache-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle.properties" }}-{{ checksum "gradle/junit5.gradle.kts" }}
+
+      - store_test_results:
+          path: ~/build-working-directory/build/test-results/
+
+      - save_cache:
+          paths:
+            - ~/build-working-directory/.gradle
+          key: build-cache-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle.properties" }}-{{ checksum "gradle/junit5.gradle.kts" }}
+
+
