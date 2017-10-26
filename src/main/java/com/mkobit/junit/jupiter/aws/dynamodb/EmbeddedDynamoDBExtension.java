@@ -15,12 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -38,16 +38,13 @@ class EmbeddedDynamoDBExtension
   @Override
   public void beforeAll(final ExtensionContext context) throws Exception {
     final ExtensionContext.Store store = getStore(context);
-    final Path tempDirectory = store.getOrComputeIfAbsent(context,
-                                                          (extensionContext) -> {
-                                                            try {
-                                                              return Files.createTempDirectory("native-libraries");
-                                                            } catch (IOException e) {
-                                                              throw new RuntimeException(
-                                                                  "Could not create temp native-libraries directory",
-                                                                  e);
-                                                            }
-                                                          }, Path.class);
+    final Path tempDirectory = store.getOrComputeIfAbsent(
+        context,
+        ThrowingFunction.wrap(
+            "Could not create temp native-libraries directory",
+            extensionContext -> Files.createTempDirectory("native-libraries")
+        ), Path.class
+    );
     System.setProperty(SQLLITE4JAVA_LIB_PATH_KEY, tempDirectory.toAbsolutePath().toString());
     Stream.of(System.getProperty("java.class.path", "."))
           .map(classPath -> classPath.split(System.getProperty("path.separator")))
@@ -55,16 +52,12 @@ class EmbeddedDynamoDBExtension
           .filter(PATH_ELEMENT_FILTER)
           .map(File::new)
           .map(File::toPath)
-          .forEach(libraryPath -> {
-            try {
-              Files.copy(libraryPath, tempDirectory.resolve(libraryPath.getFileName()));
-            } catch (IOException ioException) {
-              throw new RuntimeException(
-                  "Could not copy file " + libraryPath + " to " + tempDirectory.resolve(libraryPath.getFileName()),
-                  ioException
-              );
-            }
-          });
+          .forEach(
+              ThrowingConsumer.wrap(
+                  libraryPath -> "Could not copy file " + libraryPath + " to " + tempDirectory.resolve(libraryPath.getFileName()),
+                  libraryPath -> Files.copy(libraryPath, tempDirectory.resolve(libraryPath.getFileName()))
+              )
+          );
   }
 
   @Override
@@ -137,7 +130,7 @@ class EmbeddedDynamoDBExtension
   private interface ThrowingConsumer<T> {
     void accept(T t) throws Exception;
 
-    static <T> Consumer<T> wrap(ThrowingConsumer<T> consumer) {
+    static <T> Consumer<T> wrap(final ThrowingConsumer<T> consumer) {
       return wrap("Error processing consumer", consumer);
     }
 
@@ -147,6 +140,54 @@ class EmbeddedDynamoDBExtension
           consumer.accept(t);
         } catch (Exception exception) {
           throw new RuntimeException(message, exception);
+        }
+      };
+    }
+
+    static <T> Consumer<T> wrap(
+        final Function<T, String> messageFunction,
+        final ThrowingConsumer<T> consumer
+    ) {
+      return (T t) -> {
+        try {
+          consumer.accept(t);
+        } catch (Exception exception) {
+          throw new RuntimeException(messageFunction.apply(t), exception);
+        }
+      };
+    }
+  }
+
+  @FunctionalInterface
+  private interface ThrowingFunction<T, R> {
+    R apply(T t) throws Exception;
+
+    static <T, R> Function<T, R> wrap(ThrowingFunction<T, R> consumer) {
+      return wrap("Error processing consumer", consumer);
+    }
+
+    static <T, R> Function<T, R> wrap(
+        final String message,
+        final ThrowingFunction<T, R> function
+    ) {
+      return (T t) -> {
+        try {
+          return function.apply(t);
+        } catch (Exception exception) {
+          throw new RuntimeException(message, exception);
+        }
+      };
+    }
+
+    static <T, R> Function<T, R> wrap(
+        final Function<T, String> messageFunction,
+        final ThrowingFunction<T, R> function
+    ) {
+      return (T t) -> {
+        try {
+          return function.apply(t);
+        } catch (Exception exception) {
+          throw new RuntimeException(messageFunction.apply(t), exception);
         }
       };
     }
