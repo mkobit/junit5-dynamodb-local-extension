@@ -20,12 +20,12 @@ buildscript {
 }
 
 plugins {
-  id("com.gradle.build-scan") version "1.9.1"
+  id("com.gradle.build-scan") version "1.10.1"
   `java-library`
   `maven-publish`
   kotlin("jvm")
-  id("com.github.ben-manes.versions") version "0.15.0"
-  id("com.jfrog.bintray") version "1.7.3"
+  id("com.github.ben-manes.versions") version "0.17.0"
+  id("com.jfrog.bintray") version "1.8.0"
 }
 
 version = "0.1.0"
@@ -34,7 +34,7 @@ description = "Dynamo DB Local test extensions for JUnit"
 
 tasks {
   "wrapper"(Wrapper::class) {
-    gradleVersion = "4.2.1"
+    gradleVersion = "4.3"
   }
 }
 
@@ -92,7 +92,6 @@ apply {
   plugin("org.junit.platform.gradle.plugin")
 }
 
-val kotlinVersion by project
 val junitPlatformVersion: String by rootProject.extra
 val junitJupiterVersion: String by rootProject.extra
 val junitTestImplementationArtifacts: Map<String, Map<String, String>> by rootProject.extra
@@ -102,8 +101,8 @@ dependencies {
   api("com.amazonaws", "DynamoDBLocal", "1.11.86")
   api("org.slf4j", "slf4j-api", "1.7.25")
   api("org.junit.jupiter", "junit-jupiter-api", junitJupiterVersion)
-  testImplementation(kotlin("stdlib-jre8", kotlinVersion as String))
-  testImplementation(kotlin("reflect", kotlinVersion as String))
+  testImplementation(kotlin("stdlib-jre8"))
+  testImplementation(kotlin("reflect"))
   testImplementation("org.assertj:assertj-core:3.8.0")
   testImplementation("org.mockito:mockito-core:2.11.0")
   testImplementation("com.nhaarman:mockito-kotlin:1.5.0")
