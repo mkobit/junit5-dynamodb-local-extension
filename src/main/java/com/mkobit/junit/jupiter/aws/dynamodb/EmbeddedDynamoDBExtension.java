@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 /**
  * Creates a {@link AmazonDynamoDBLocal} instance and provides it to the tests.
  */
-class EmbeddedDynamoDBExtension
+final class EmbeddedDynamoDBExtension
     implements AfterEachCallback, BeforeAllCallback, AfterAllCallback, ParameterResolver {
   private static final Logger LOGGER = LoggerFactory.getLogger(EmbeddedDynamoDBExtension.class);
   private static final String SQLLITE4JAVA_LIB_PATH_KEY = "sqlite4java.library.path";
