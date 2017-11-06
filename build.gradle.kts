@@ -1,12 +1,13 @@
+import buildsrc.DependencyInfo
+import buildsrc.ProjectInfo
 import com.jfrog.bintray.gradle.BintrayExtension
+import java.io.ByteArrayOutputStream
 import org.gradle.api.internal.HasConvention
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.junit.platform.console.options.Details
 import org.junit.platform.gradle.plugin.JUnitPlatformExtension
 import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
-
-import java.io.ByteArrayOutputStream
 
 buildscript {
   repositories {
@@ -28,19 +29,13 @@ plugins {
   id("com.jfrog.bintray") version "1.8.0"
 }
 
-version = "0.1.0"
-group = "com.mkobit.junit.jupiter"
-description = "Dynamo DB Local test extensions for JUnit"
-
-tasks {
-  "wrapper"(Wrapper::class) {
-    gradleVersion = "4.3"
-  }
+apply {
+  plugin("org.junit.platform.gradle.plugin")
 }
 
-val projectUrl by extra { "https://github.com/mkobit/junit5-dynamodb-local-extensions" }
-val issuesUrl by extra { "https://github.com/mkobit/junit5-dynamodb-local-extensions/issues" }
-val scmUrl by extra { "https://github.com/mkobit/junit5-dynamodb-local-extensions.git" }
+version = "0.1.0"
+group = "com.mkobit.junit.jupiter.aws"
+description = "Dynamo DB Local test extensions for JUnit"
 
 val gitCommitSha: String by lazy {
   ByteArrayOutputStream().use {
@@ -72,7 +67,7 @@ buildScan {
     env("CIRCLE_COMPARE_URL")?.let { link("Diff", it) }
     env("CIRCLE_REPOSITORY_URL")?.let { value("Repository", it) }
     env("CIRCLE_PR_NUMBER")?.let { value("Pull Request Number", it) }
-    link("Repository", projectUrl)
+    link("Repository", ProjectInfo.projectUrl)
   }
 }
 
@@ -87,78 +82,60 @@ repositories {
   }
 }
 
-apply {
-  from("gradle/junit5.gradle.kts")
-  plugin("org.junit.platform.gradle.plugin")
-}
-
-val junitPlatformVersion: String by rootProject.extra
-val junitJupiterVersion: String by rootProject.extra
-val junitTestImplementationArtifacts: Map<String, Map<String, String>> by rootProject.extra
-val junitTestRuntimeOnlyArtifacts: Map<String, Map<String, String>> by rootProject.extra
-
 dependencies {
   api("com.amazonaws", "DynamoDBLocal", "1.11.86")
   api("org.slf4j", "slf4j-api", "1.7.25")
-  api("org.junit.jupiter", "junit-jupiter-api", junitJupiterVersion)
+  api("org.junit.jupiter", "junit-jupiter-api", DependencyInfo.junitJupiterVersion)
   testImplementation(kotlin("stdlib-jre8"))
   testImplementation(kotlin("reflect"))
   testImplementation("org.assertj:assertj-core:3.8.0")
   testImplementation("org.mockito:mockito-core:2.11.0")
   testImplementation("com.nhaarman:mockito-kotlin:1.5.0")
-  junitTestImplementationArtifacts.values.forEach {
+  DependencyInfo.junitTestImplementationArtifacts.forEach {
     testImplementation(it)
   }
-  junitTestRuntimeOnlyArtifacts.values.forEach {
+  DependencyInfo.junitTestRuntimeOnlyArtifacts.forEach {
     testRuntimeOnly(it)
   }
 }
 
 extensions.getByType(JUnitPlatformExtension::class.java).apply {
-  platformVersion = junitPlatformVersion
+  platformVersion = DependencyInfo.junitPlatformVersion
   filters {
     engines {
       include("junit-jupiter")
-    }
-    packages {
-      exclude("testdata")
     }
   }
   logManager = "org.apache.logging.log4j.jul.LogManager"
   details = Details.TREE
 }
 
+java {
+  sourceCompatibility = JavaVersion.VERSION_1_8
+  targetCompatibility = JavaVersion.VERSION_1_8
+}
+
 val main = java.sourceSets["main"]!!
 // No Kotlin in main source set
 main.kotlin.setSrcDirs(emptyList<Any>())
 
-val sourcesJar by tasks.creating(Jar::class) {
-  classifier = "sources"
-  from(main.allSource)
-  description = "Assembles a JAR of the source code"
-  group = JavaBasePlugin.DOCUMENTATION_GROUP
-}
-
-val javadocJar by tasks.creating(Jar::class) {
-  val javadoc by tasks.getting(Javadoc::class)
-  dependsOn(javadoc)
-  from(javadoc.destinationDir)
-  classifier = "javadoc"
-  description = "Assembles a JAR of the generated Javadoc"
-  group = JavaBasePlugin.DOCUMENTATION_GROUP
-}
-
 tasks {
+  "wrapper"(Wrapper::class) {
+    gradleVersion = "4.3"
+    distributionType = Wrapper.DistributionType.ALL
+  }
+
   withType<Jar> {
-    manifest {
-      attributes(mapOf(
-          "Build-Revision" to gitCommitSha,
-          "Implementation-Version" to project.version
-      ))
-    }
     from(project.projectDir) {
       include("LICENSE.txt")
       into("META-INF")
+    }
+    manifest {
+      attributes(mapOf(
+          "Build-Revision" to gitCommitSha,
+          "Automatic-Module-Name" to ProjectInfo.automaticModuleName,
+          "Implementation-Version" to project.version
+      ))
     }
   }
 
@@ -171,6 +148,22 @@ tasks {
 
   withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "1.8"
+  }
+
+  val sourcesJar by creating(Jar::class) {
+    classifier = "sources"
+    from(main.allSource)
+    description = "Assembles a JAR of the source code"
+    group = JavaBasePlugin.DOCUMENTATION_GROUP
+  }
+
+  val javadocJar by creating(Jar::class) {
+    val javadoc by tasks.getting(Javadoc::class)
+    dependsOn(javadoc)
+    from(javadoc.destinationDir)
+    classifier = "javadoc"
+    description = "Assembles a JAR of the generated Javadoc"
+    group = JavaBasePlugin.DOCUMENTATION_GROUP
   }
 
   "assemble" {
@@ -219,6 +212,8 @@ tasks {
 val publicationName = "jupiterExtensions"
 publishing {
   publications.invoke {
+    val sourcesJar by tasks.getting
+    val javadocJar by tasks.getting
     publicationName(MavenPublication::class) {
       from(components["java"])
       artifact(sourcesJar)
@@ -226,7 +221,7 @@ publishing {
       pom.withXml {
         asNode().apply {
           appendNode("description", project.description)
-          appendNode("url", projectUrl)
+          appendNode("url", ProjectInfo.projectUrl)
           appendNode("licenses").apply {
             appendNode("license").apply {
               appendNode("name", "The MIT License")
@@ -255,8 +250,8 @@ bintray {
     setLabels("junit", "jupiter", "junit5", "dynamodb", "aws")
     setLicenses("MIT")
     desc = project.description
-    websiteUrl = projectUrl
-    issueTrackerUrl = issuesUrl
-    vcsUrl = scmUrl
+    websiteUrl = ProjectInfo.projectUrl
+    issueTrackerUrl = ProjectInfo.issuesUrl
+    vcsUrl = ProjectInfo.scmUrl
   })
 }
