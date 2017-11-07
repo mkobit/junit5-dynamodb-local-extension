@@ -74,7 +74,6 @@ repositories {
   jcenter()
   mavenCentral()
   maven {
-    description = "Repository from US West 2 - https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html"
     name = "dynamodb-local-oregon"
     url = uri("https://s3-us-west-2.amazonaws.com/dynamodb-local/release")
   }
