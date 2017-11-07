@@ -30,7 +30,7 @@ internal class EmbeddedDynamoDBExtensionTest {
   }
 
   @Test
-  internal fun `can resolved AmazonDynamoDB`(amazonDynamoDB: AmazonDynamoDB) {
+  internal fun `can resolve AmazonDynamoDB`(amazonDynamoDB: AmazonDynamoDB) {
     assertThat(amazonDynamoDB).isNotNull()
   }
 

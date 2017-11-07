@@ -71,7 +71,6 @@ buildScan {
   }
 }
 
-
 repositories {
   jcenter()
   mavenCentral()
