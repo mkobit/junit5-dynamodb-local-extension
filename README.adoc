@@ -1,0 +1,75 @@
+= AssertJ Gradle
+:toc:
+:github-repo-id: junit5-dynamodb-local-extension
+:uri-github-releases: https://github.com/mkobit/{github-repo-id}/releases
+:uri-dynamo-db-developer-guide: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html
+:uri-build-status-image: https://circleci.com/gh/mkobit/{github-repo-id}/tree/master.svg?style=svg
+:circle-ci-status-badge: image:{uri-build-status-image}["CircleCI", link="https://circleci.com/gh/mkobit/{github-repo-id}/tree/master"]
+:uri-version-badge-image: https://api.bintray.com/packages/mkobit/junit/{github-repo-id}/images/download.svg
+:uri-bintray-package: https://bintray.com/mkobit/junit/{github-repo-id}/_latestVersion
+:version-badge: image:{uri-version-badge-image}["Latest Release Version", link="{uri-bintray-package}"]
+
+{version-badge}
+{circle-ci-status-badge}
+
+NOTE: This documentation is for the `HEAD` of the repository.
+      To see documentation at a specific version see the link:{uri-github-releases}[GitHub Releases page]
+
+== Setup
+
+.Add as a dependency
+[source, kotlin, subs=attributes+]
+----
+repositories {
+  jcenter()
+  // You will also need a repository to retrieve the DynamoDB Local transitive dependencies.
+  // These are listed on {uri-dynamo-db-developer-guide}
+  maven {
+    description = "Repository from US West 2 - https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html"
+    name = "dynamodb-local-oregon"
+    url = uri("https://s3-us-west-2.amazonaws.com/dynamodb-local/release")
+  }
+}
+
+dependencies {
+  testImplementation("com.mkobit.gradle.test:assertj-gradle:x.x.x")
+}
+----
+
+== Usage
+
+=== Using in tests
+
+NOTE: The extension modifies the `sqlite4java.library.path` JVM system property.
+      An explanation for why can be found on link:https://stackoverflow.com/questions/26901613/easier-dynamodb-local-testing[this Stack Overflow question and answers].
+
+The extension will create a new embedded DynamoDB instance for each test.
+It attempts to locate the native dependencies on the classpath, place them into a temporary directory, and then set a system property before creating the database for test injection.
+
+Annotate your test class or methods with `@DynamoDBLocal` and have one of the supported types automatically injected for use in your test.
+It will be torn down afterwards.
+
+.Example showing different types that can be injected.
+[source, java]
+----
+import com.mkobit.junit.jupiter.aws.dynamodb.DynamoDBLocal;
+
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBStreams
+import com.amazonaws.services.dynamodbv2.local.shared.access.AmazonDynamoDBLocal
+
+@DynamoDBLocal
+class MyDynamoDbTest {
+  @Test
+  void usingAmazonDynamoDBLocal(final AmazonDynamoDBLocal amazonDynamoDBLocal) {
+  }
+
+  @Test
+  void usingAmazonDynamoDB(final AmazonDynamoDB amazonDynamoDB) {
+  }
+
+  @Test
+  void usingAmazonDynamoDBStreams(final AmazonDynamoDBStreams amazonDynamoDBStreams) {
+  }
+}
+----
