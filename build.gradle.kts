@@ -118,7 +118,7 @@ main.kotlin.setSrcDirs(emptyList<Any>())
 
 tasks {
   "wrapper"(Wrapper::class) {
-    gradleVersion = "4.3"
+    gradleVersion = "4.3.1"
     distributionType = Wrapper.DistributionType.ALL
   }
 
