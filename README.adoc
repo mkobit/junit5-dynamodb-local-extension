@@ -32,7 +32,7 @@ repositories {
 }
 
 dependencies {
-  testImplementation("com.mkobit.gradle.test:assertj-gradle:x.x.x")
+  testImplementation("com.mkobit.junit.jupiter.aws:junit5-dynamodb-local-extension:x.x.x")
 }
 ----
 
