@@ -11,8 +11,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -22,6 +20,7 @@ import java.util.Comparator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 /**
@@ -29,7 +28,7 @@ import java.util.stream.Stream;
  */
 final class EmbeddedDynamoDBExtension
     implements AfterEachCallback, BeforeAllCallback, AfterAllCallback, ParameterResolver {
-  private static final Logger LOGGER = LoggerFactory.getLogger(EmbeddedDynamoDBExtension.class);
+  private static final Logger LOGGER = Logger.getLogger(EmbeddedDynamoDBExtension.class.getCanonicalName());
   private static final String SQLLITE4JAVA_LIB_PATH_KEY = "sqlite4java.library.path";
 
   private static final Predicate<String> PATH_ELEMENT_FILTER = (element) -> element.contains("sqlite")
@@ -65,17 +64,17 @@ final class EmbeddedDynamoDBExtension
     final ExtensionContext.Store store = getStore(context);
     final Path tempNativeLibraries = store.remove(context, Path.class);
     if (tempNativeLibraries != null) {
-      LOGGER.debug("Deleting all native library files at {}", tempNativeLibraries);
+      LOGGER.fine(() -> "Deleting all native library files at " + tempNativeLibraries);
       Files.walk(tempNativeLibraries)
            .sorted(Comparator.reverseOrder())
-           .peek(path -> LOGGER.debug("Deleting file/directory located at " + path))
+           .peek(path -> LOGGER.fine(() ->"Deleting file/directory located at " + path))
            .forEach(ThrowingConsumer.wrap(Files::delete));
     }
   }
 
   @Override
   public void afterEach(final ExtensionContext context) throws Exception {
-    LOGGER.debug("Shutting down Dynamo DB instance for {}", context.getElement());
+    LOGGER.fine(() -> "Shutting down Dynamo DB instance for " + context.getElement());
     final ExtensionContext.Store store = getStore(context);
     final AmazonDynamoDBLocal dynamoDBLocal = store.remove(context, AmazonDynamoDBLocal.class);
     if (dynamoDBLocal != null) {

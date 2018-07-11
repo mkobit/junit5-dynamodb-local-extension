@@ -63,8 +63,7 @@ repositories {
 }
 
 dependencies {
-  api("com.amazonaws:DynamoDBLocal:1.11.86")
-  api("org.slf4j:slf4j-api:1.7.25")
+  api(DependencyInfo.dynamoDbLocal)
   api(DependencyInfo.junitJupiterApi)
   testImplementation(kotlin("stdlib-jdk8"))
   testImplementation(kotlin("reflect"))
