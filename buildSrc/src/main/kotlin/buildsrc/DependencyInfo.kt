@@ -1,17 +1,22 @@
 package buildsrc
 
+@Suppress("UNUSED", "MemberVisibilityCanBePrivate")
 object DependencyInfo {
-  val junitGradlePluginVersion: String = "1.0.1"
-  val junitPlatformVersion: String = "1.0.1"
-  val junitPlatformGradlePluginVersion: String = "1.0.1"
-  val junitJupiterVersion: String = "5.0.1"
-  val junitVintageVersion: String = "4.12.1"
-  val junit5Log4jVersion: String = "2.9.1"
+  const val junitPlatformVersion = "1.2.0"
+  const val junitJupiterVersion = "5.2.0"
+  const val junit5Log4jVersion: String = "2.11.0"
 
-  val junitPlatformGradlePlugin = mapOf("group" to "org.junit.platform", "name" to "junit-platform-gradle-plugin", "version" to junitGradlePluginVersion)
-  val junitPlatformRunner = mapOf("group" to "org.junit.platform", "name" to "junit-platform-runner", "version" to junitPlatformVersion)
-  val junitJupiterApi = mapOf("group" to "org.junit.jupiter", "name" to "junit-jupiter-api", "version" to junitJupiterVersion)
-  val junitJupiterParams = mapOf("group" to "org.junit.jupiter", "name" to "junit-jupiter-params", "version" to junitJupiterVersion)
+  const val assertJCore = "org.assertj:assertj-core:3.10.0"
+  const val dynamoDbLocal = "com.amazonaws:DynamoDBLocal:1.11.119"
+  const val mockito = "org.mockito:mockito-core:2.19.0"
+  const val mockitoKotlin = "com.nhaarman:mockito-kotlin:1.6.0"
+  val junitPlatformRunner = junitPlatform("runner")
+  val junitJupiterApi = junitJupiter("api")
+  val junitJupiterEngine = junitJupiter("engine")
+  val junitJupiterParams = junitJupiter("params")
+
+  val log4jCore = log4j("core")
+  val log4jJul = log4j("jul")
 
   val junitTestImplementationArtifacts = listOf(
       junitPlatformRunner,
@@ -19,13 +24,13 @@ object DependencyInfo {
       junitJupiterParams
   )
 
-  val junitJupiterEngine = mapOf("group" to "org.junit.jupiter", "name" to "junit-jupiter-engine", "version" to junitJupiterVersion)
-  val log4jCore = mapOf("group" to "org.apache.logging.log4j", "name" to "log4j-core", "version" to junit5Log4jVersion)
-  val log4jJul = mapOf("group" to "org.apache.logging.log4j", "name" to "log4j-jul", "version" to junit5Log4jVersion)
-
   val junitTestRuntimeOnlyArtifacts = listOf(
       junitJupiterEngine,
       log4jCore,
       log4jJul
   )
+
+  fun junitJupiter(module: String) = "org.junit.jupiter:junit-jupiter-$module:$junitJupiterVersion"
+  fun junitPlatform(module: String) = "org.junit.platform:junit-platform-$module:$junitPlatformVersion"
+  fun log4j(module: String) = "org.apache.logging.log4j:log4j-$module:$junit5Log4jVersion"
 }

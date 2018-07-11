@@ -4,33 +4,16 @@ import com.jfrog.bintray.gradle.BintrayExtension
 import java.io.ByteArrayOutputStream
 import org.gradle.api.internal.HasConvention
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.junit.platform.console.options.Details
-import org.junit.platform.gradle.plugin.JUnitPlatformExtension
 import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 
-buildscript {
-  repositories {
-    mavenCentral()
-    jcenter()
-  }
-  dependencies {
-    // TODO: load from properties or script plugin
-    classpath("org.junit.platform:junit-platform-gradle-plugin:1.0.1")
-  }
-}
-
 plugins {
-  id("com.gradle.build-scan") version "1.10.1"
+  id("com.gradle.build-scan") version "1.15.1"
   `java-library`
   `maven-publish`
-  kotlin("jvm")
-  id("com.github.ben-manes.versions") version "0.17.0"
-  id("com.jfrog.bintray") version "1.8.0"
-}
-
-apply {
-  plugin("org.junit.platform.gradle.plugin")
+  kotlin("jvm") version "1.2.51"
+  id("com.github.ben-manes.versions") version "0.20.0"
+  id("com.jfrog.bintray") version "1.8.4"
 }
 
 version = "0.1.0"
@@ -53,8 +36,8 @@ val SourceSet.kotlin: SourceDirectorySet
 buildScan {
   fun env(key: String): String? = System.getenv(key)
 
-  setLicenseAgree("yes")
-  setLicenseAgreementUrl("https://gradle.com/terms-of-service")
+  setTermsOfServiceAgree("yes")
+  setTermsOfServiceUrl("https://gradle.com/terms-of-service")
 
   // Env variables from https://circleci.com/docs/2.0/env-vars/
   if (env("CI") != null) {
@@ -80,31 +63,20 @@ repositories {
 }
 
 dependencies {
-  api("com.amazonaws", "DynamoDBLocal", "1.11.86")
-  api("org.slf4j", "slf4j-api", "1.7.25")
-  api("org.junit.jupiter", "junit-jupiter-api", DependencyInfo.junitJupiterVersion)
-  testImplementation(kotlin("stdlib-jre8"))
+  api("com.amazonaws:DynamoDBLocal:1.11.86")
+  api("org.slf4j:slf4j-api:1.7.25")
+  api(DependencyInfo.junitJupiterApi)
+  testImplementation(kotlin("stdlib-jdk8"))
   testImplementation(kotlin("reflect"))
-  testImplementation("org.assertj:assertj-core:3.8.0")
-  testImplementation("org.mockito:mockito-core:2.11.0")
-  testImplementation("com.nhaarman:mockito-kotlin:1.5.0")
+  testImplementation(DependencyInfo.assertJCore)
+  testImplementation(DependencyInfo.mockito)
+  testImplementation(DependencyInfo.mockitoKotlin)
   DependencyInfo.junitTestImplementationArtifacts.forEach {
     testImplementation(it)
   }
   DependencyInfo.junitTestRuntimeOnlyArtifacts.forEach {
     testRuntimeOnly(it)
   }
-}
-
-extensions.getByType(JUnitPlatformExtension::class.java).apply {
-  platformVersion = DependencyInfo.junitPlatformVersion
-  filters {
-    engines {
-      include("junit-jupiter")
-    }
-  }
-  logManager = "org.apache.logging.log4j.jul.LogManager"
-  details = Details.TREE
 }
 
 java {
@@ -118,7 +90,7 @@ main.kotlin.setSrcDirs(emptyList<Any>())
 
 tasks {
   "wrapper"(Wrapper::class) {
-    gradleVersion = "4.3.1"
+    gradleVersion = "4.8.1"
     distributionType = Wrapper.DistributionType.ALL
   }
 
@@ -134,6 +106,10 @@ tasks {
           "Implementation-Version" to project.version
       ))
     }
+  }
+
+  withType<Test> {
+    useJUnitPlatform()
   }
 
   withType<Javadoc> {
