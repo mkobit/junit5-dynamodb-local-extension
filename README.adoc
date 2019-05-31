@@ -1,4 +1,4 @@
-= AssertJ Gradle
+= JUnit Jupiter DynamoDB Local Extension
 :toc:
 :github-repo-id: junit5-dynamodb-local-extension
 :uri-github-releases: https://github.com/mkobit/{github-repo-id}/releases
