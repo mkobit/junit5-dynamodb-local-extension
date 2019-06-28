@@ -1,18 +1,20 @@
-import buildsrc.DependencyInfo
 import buildsrc.ProjectInfo
 import com.jfrog.bintray.gradle.BintrayExtension
 import java.io.ByteArrayOutputStream
-import org.gradle.api.internal.HasConvention
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 
 plugins {
-  id("com.gradle.build-scan") version "1.15.1"
+  id("com.gradle.build-scan") version "2.3"
+
   `java-library`
   `maven-publish`
-  kotlin("jvm") version "1.2.51"
-  id("com.github.ben-manes.versions") version "0.20.0"
+
+  kotlin("jvm") version "1.3.40"
+
+  id("nebula.release") version "10.1.1"
+  id("com.github.ben-manes.versions") version "0.21.0"
   id("com.jfrog.bintray") version "1.8.4"
 }
 
@@ -36,8 +38,8 @@ val SourceSet.kotlin: SourceDirectorySet
 buildScan {
   fun env(key: String): String? = System.getenv(key)
 
-  setTermsOfServiceAgree("yes")
-  setTermsOfServiceUrl("https://gradle.com/terms-of-service")
+  termsOfServiceAgree = "yes"
+  termsOfServiceUrl = "https://gradle.com/terms-of-service"
 
   // Env variables from https://circleci.com/docs/2.0/env-vars/
   if (env("CI") != null) {
@@ -47,7 +49,11 @@ buildScan {
     env("CIRCLE_BUILD_NUM")?.let { value("Circle CI Build Number", it) }
     env("CIRCLE_BUILD_URL")?.let { link("Build URL", it) }
     env("CIRCLE_SHA1")?.let { value("Revision", it) }
-    env("CIRCLE_COMPARE_URL")?.let { link("Diff", it) }
+//    Issue with Circle CI/Gradle with caret (^) in URLs
+//    see: https://discuss.gradle.org/t/build-scan-plugin-1-10-3-issue-when-using-a-url-with-a-caret/24965
+//    see: https://discuss.circleci.com/t/circle-compare-url-does-not-url-escape-caret/18464
+//    env("CIRCLE_COMPARE_URL")?.let { link("Diff", it) }
+    env("CIRCLE_REPOSITORY_URL")?.let { value("Repository", it) }
     env("CIRCLE_PR_NUMBER")?.let { value("Pull Request Number", it) }
     link("Repository", ProjectInfo.projectUrl)
   }
@@ -62,20 +68,34 @@ repositories {
   }
 }
 
+configurations.all {
+  resolutionStrategy.eachDependency {
+    when (requested.group) {
+      "dev.minutest" -> useVersion("1.7.0")
+      "org.junit.jupiter" -> useVersion("5.4.2")
+      "org.junit.platform" -> useVersion("1.4.2")
+      "io.strikt" -> useVersion("0.20.0")
+      "org.apache.logging.log4j" -> useVersion("2.11.2")
+    }
+  }
+}
+
 dependencies {
-  api(DependencyInfo.dynamoDbLocal)
-  api(DependencyInfo.junitJupiterApi)
+  api("com.amazonaws:DynamoDBLocal:1.11.119")
+  api("org.junit.jupiter:junit-jupiter-api")
+
   testImplementation(kotlin("stdlib-jdk8"))
   testImplementation(kotlin("reflect"))
-  testImplementation(DependencyInfo.assertJCore)
-  testImplementation(DependencyInfo.mockito)
-  testImplementation(DependencyInfo.mockitoKotlin)
-  DependencyInfo.junitTestImplementationArtifacts.forEach {
-    testImplementation(it)
-  }
-  DependencyInfo.junitTestRuntimeOnlyArtifacts.forEach {
-    testRuntimeOnly(it)
-  }
+  testImplementation("org.assertj:assertj-core:3.10.0")
+  testImplementation("org.mockito:mockito-core:2.19.0")
+  testImplementation("com.nhaarman:mockito-kotlin:1.6.0")
+  testImplementation("org.junit.platform:junit-platform-runner")
+  testImplementation("org.junit.jupiter:junit-jupiter-api")
+  testImplementation("org.junit.jupiter:junit-jupiter-params")
+
+  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
+  testRuntimeOnly("org.apache.logging.log4j:log4j-core")
+  testRuntimeOnly("org.apache.logging.log4j:log4j-jul")
 }
 
 java {
@@ -83,14 +103,9 @@ java {
   targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-val main = java.sourceSets["main"]!!
-// No Kotlin in main source set
-main.kotlin.setSrcDirs(emptyList<Any>())
-
 tasks {
-  "wrapper"(Wrapper::class) {
-    gradleVersion = "4.8.1"
-    distributionType = Wrapper.DistributionType.ALL
+  wrapper {
+    gradleVersion = "5.5"
   }
 
   withType<Jar> {
@@ -107,99 +122,72 @@ tasks {
     }
   }
 
-  withType<Test> {
-    useJUnitPlatform()
+  withType<Test>().configureEach {
+    systemProperty("java.util.logging.manager", "org.apache.logging.log4j.jul.LogManager")
+    testLogging {
+      events("skipped", "failed")
+    }
   }
 
-  withType<Javadoc> {
+  withType<Javadoc>().configureEach {
     options {
       header = project.name
       encoding = "UTF-8"
     }
   }
 
-  withType<KotlinCompile> {
+  withType<KotlinCompile>().configureEach {
     kotlinOptions.jvmTarget = "1.8"
   }
 
   val sourcesJar by creating(Jar::class) {
-    classifier = "sources"
-    from(main.allSource)
+    archiveClassifier.set("sources")
+    from(sourceSets.main.map { it.allSource })
     description = "Assembles a JAR of the source code"
     group = JavaBasePlugin.DOCUMENTATION_GROUP
   }
 
   val javadocJar by creating(Jar::class) {
-    val javadoc by tasks.getting(Javadoc::class)
     dependsOn(javadoc)
-    from(javadoc.destinationDir)
-    classifier = "javadoc"
+    from(javadoc.map { it.destinationDir })
+    archiveClassifier.set("javadoc")
     description = "Assembles a JAR of the generated Javadoc"
     group = JavaBasePlugin.DOCUMENTATION_GROUP
   }
 
-  "assemble" {
+  assemble {
     dependsOn(sourcesJar, javadocJar)
   }
 
-  val gitDirtyCheck by creating {
-    doFirst {
-      val output = ByteArrayOutputStream().use {
-        exec {
-          commandLine("git", "status", "--porcelain")
-          standardOutput = it
-        }
-        it.toString(Charsets.UTF_8.name()).trim()
-      }
-      if (output.isNotBlank()) {
-        throw GradleException("Workspace is dirty:\n$output")
-      }
-    }
+  prepare {
+    // disable Git upstream checks
+    enabled = false
   }
 
-  val gitTag by creating(Exec::class) {
-    description = "Tags the local repository with version ${project.version}"
-    group = PublishingPlugin.PUBLISH_TASK_GROUP
-    commandLine("git", "tag", "-a", project.version, "-m", "Gradle created tag for ${project.version}")
-  }
-
-  val pushGitTag by creating(Exec::class) {
-    description = "Pushes Git tag ${project.version} to origin"
-    group = PublishingPlugin.PUBLISH_TASK_GROUP
-    dependsOn(gitTag)
-    commandLine("git", "push", "origin", "refs/tags/${project.version}")
-  }
-
-  val bintrayUpload by getting {
-    dependsOn(gitDirtyCheck, gitTag)
-  }
-
-  "release" {
-    group = PublishingPlugin.PUBLISH_TASK_GROUP
-    description = "Publishes the library and pushes up a Git tag for the current commit"
-    dependsOn(bintrayUpload, pushGitTag)
+  (release) {
+    dependsOn(bintrayUpload)
+    // disabled to not push git tag
+    enabled = false
   }
 }
 
 val publicationName = "jupiterExtensions"
 publishing {
-  publications.invoke {
+  publications {
     val sourcesJar by tasks.getting
     val javadocJar by tasks.getting
-    publicationName(MavenPublication::class) {
+    register(publicationName, MavenPublication::class) {
       from(components["java"])
       artifact(sourcesJar)
       artifact(javadocJar)
-      pom.withXml {
-        asNode().apply {
-          appendNode("description", project.description)
-          appendNode("url", ProjectInfo.projectUrl)
-          appendNode("licenses").apply {
-            appendNode("license").apply {
-              appendNode("name", "The MIT License")
-              appendNode("url", "https://opensource.org/licenses/MIT")
-              appendNode("distribution", "repo")
-            }
+      pom {
+        description.set(project.description)
+        url.set(ProjectInfo.projectUrl)
+        licenses {
+          license {
+            name.set("The MIT License")
+            url.set("https://opensource.org/licenses/MIT")
+            distribution.set("repo")
           }
         }
       }
@@ -208,17 +196,14 @@ publishing {
 }
 
 bintray {
-  val bintrayUser = project.findProperty("bintrayUser") as String?
-  val bintrayApiKey = project.findProperty("bintrayApiKey") as String?
-  user = bintrayUser
-  key = bintrayApiKey
-//  publish = true
+  user = findProperty("bintray.user") as String?
+  key = findProperty("bintray.key") as String?
+  publish = true
   setPublications(publicationName)
   pkg(delegateClosureOf<BintrayExtension.PackageConfig> {
     repo = "junit"
     name = project.name
     userOrg = "mkobit"
-
     setLabels("junit", "jupiter", "junit5", "dynamodb", "aws")
     setLicenses("MIT")
     desc = project.description
