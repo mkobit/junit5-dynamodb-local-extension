@@ -74,21 +74,24 @@ configurations.all {
       "dev.minutest" -> useVersion("1.7.0")
       "org.junit.jupiter" -> useVersion("5.4.2")
       "org.junit.platform" -> useVersion("1.4.2")
-      "io.strikt" -> useVersion("0.20.0")
+      "io.strikt" -> useVersion("0.21.1")
       "org.apache.logging.log4j" -> useVersion("2.11.2")
     }
   }
 }
 
 dependencies {
-  api("com.amazonaws:DynamoDBLocal:1.11.119")
+  api("software.amazon.awssdk:dynamodb:2.6.2")
+  api("com.amazonaws:DynamoDBLocal:1.11.477")
   api("org.junit.jupiter:junit-jupiter-api")
 
   testImplementation(kotlin("stdlib-jdk8"))
   testImplementation(kotlin("reflect"))
-  testImplementation("org.assertj:assertj-core:3.10.0")
-  testImplementation("org.mockito:mockito-core:2.19.0")
-  testImplementation("com.nhaarman:mockito-kotlin:1.6.0")
+
+  testImplementation("io.mockk:mockk:1.9.3")
+  testImplementation("io.strikt:strikt-core")
+  testImplementation("dev.minutest:minutest")
+  testImplementation("org.junit.platform:junit-platform-testkit:")
   testImplementation("org.junit.platform:junit-platform-runner")
   testImplementation("org.junit.jupiter:junit-jupiter-api")
   testImplementation("org.junit.jupiter:junit-jupiter-params")
